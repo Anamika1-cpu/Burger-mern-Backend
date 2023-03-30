@@ -17,17 +17,10 @@ router.get(
   })
 );
 
-router.get(
-  "/login",
-  passport.authenticate("google"),
-  // {
+router.get("/login", passport.authenticate("google"), {
   //     scope: ["profile"],
-  //     successRedirect: process.env.FRONTEND_URL,
-  //   })
-  (req, res) => {
-    res.send("Logged In");
-  }
-);
+  successRedirect: process.env.FRONTEND_URL,
+});
 
 router.get("/me", isAuthenticated, myProfile);
 
