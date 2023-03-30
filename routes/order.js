@@ -3,6 +3,7 @@ import {
   getAdminOrders,
   getMyOrders,
   getOrderDetails,
+  paymentVerification,
   placeOrder,
   placeOrderOnline,
   processOrder,
@@ -10,17 +11,11 @@ import {
 import { authorizeAdmin, isAuthenticated } from "../middlewares/auth.js";
 const router = express.Router();
 
-router.post(
-  "/createOrder",
-  //  isAuthenticated,
-  placeOrder
-);
-router.post(
-  "/createOrderOnline",
-  //  isAuthenticated,
-  placeOrderOnline
-);
+router.post("/createOrder", isAuthenticated, placeOrder);
+router.post("/createOrderOnline", isAuthenticated, placeOrderOnline);
 router.get("/myOrders", isAuthenticated, getMyOrders);
+
+router.post("/paymentverification", isAuthenticated, paymentVerification);
 
 router.get("/order/:id", isAuthenticated, getOrderDetails);
 

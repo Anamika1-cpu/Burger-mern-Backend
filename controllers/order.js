@@ -1,5 +1,7 @@
+import crypto from "crypto";
 import { asyncError } from "../middlewares/errorMiddleware.js";
 import { Order } from "../models/Order.js";
+import { Payment } from "../models/Payment.js";
 import { instance } from "../server.js";
 import ErrorHandler from "../utils/errorHandler.js";
 
@@ -13,7 +15,7 @@ export const placeOrder = asyncError(async (req, res, next) => {
     shippingCharges,
     totalAmount,
   } = req.body;
-  const user = "req.user._id";
+  const user = req.user._id;
   const orderOptions = {
     shippingInfo,
     orderItems,
@@ -41,7 +43,7 @@ export const placeOrderOnline = asyncError(async (req, res, next) => {
     shippingCharges,
     totalAmount,
   } = req.body;
-  const user = "req.user._id";
+  const user = req.user._id;
   const orderOptions = {
     shippingInfo,
     orderItems,
@@ -56,11 +58,9 @@ export const placeOrderOnline = asyncError(async (req, res, next) => {
   const options = {
     amount: Number(totalAmount) * 100,
     currency: "INR",
-    receipt: "order_rceipt_1",
   };
-  const order = instance.orders.create(options);
+  const order = await instance.orders.create(options);
 
-  await Order.create(orderOptions);
   res.status(201).json({
     success: true,
     order,
@@ -115,4 +115,42 @@ export const processOrder = asyncError(async (req, res, next) => {
     success: true,
     message: "Status updated successfully",
   });
+});
+
+export const paymentVerification = asyncError(async (req, res, next) => {
+  const {
+    razorpay_payment_id,
+    razorpay_order_id,
+    razorpay_signature_id,
+    orderOptions,
+  } = req.body;
+
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
+
+  const expecSignature = crypto
+    .createHmac("sha256", process.env.RAZOR_SECRET)
+    .update(body)
+    .digest("hex");
+
+  const isAuthentic = expecSignature === body;
+  if (isAuthentic) {
+    const payment = await Payment.create({
+      razorpay_payment_id,
+      razorpay_order_id,
+      razorpay_signature_id,
+    });
+
+    await Order.create({
+      ...orderOptions,
+      paidAt: Date.now(),
+      paymentInfo: payment._id,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Order Placed successfully, Payment id:${payment._id}`,
+    });
+  } else {
+    return next(new ErrorHandler("Payment failed", 400));
+  }
 });
