@@ -16,6 +16,7 @@ export const placeOrder = asyncError(async (req, res, next) => {
     totalAmount,
   } = req.body;
   const user = req.user._id;
+
   const orderOptions = {
     shippingInfo,
     orderItems,
@@ -78,6 +79,43 @@ export const getMyOrders = asyncError(async (req, res, next) => {
   });
 });
 
+export const paymentVerification = asyncError(async (req, res, next) => {
+  const {
+    razorpay_payment_id,
+    razorpay_order_id,
+    razorpay_signature_id,
+    orderOptions,
+  } = req.body;
+
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
+
+  const expecSignature = crypto
+    .createHmac("sha256", process.env.RAZOR_SECRET)
+    .update(body)
+    .digest("hex");
+
+  const isAuthentic = expecSignature === body;
+  if (isAuthentic) {
+    const payment = await Payment.create({
+      razorpay_payment_id,
+      razorpay_order_id,
+      razorpay_signature_id,
+    });
+
+    await Order.create({
+      ...orderOptions,
+      paidAt: Date.now(),
+      paymentInfo: payment._id,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Order Placed successfully, Payment id:${payment._id}`,
+    });
+  } else {
+    return next(new ErrorHandler("Payment failed", 400));
+  }
+});
 export const getOrderDetails = asyncError(async (req, res, next) => {
   const { id } = req.params;
   const order = await Order.findById(id).populate("user", "name");
@@ -115,42 +153,4 @@ export const processOrder = asyncError(async (req, res, next) => {
     success: true,
     message: "Status updated successfully",
   });
-});
-
-export const paymentVerification = asyncError(async (req, res, next) => {
-  const {
-    razorpay_payment_id,
-    razorpay_order_id,
-    razorpay_signature_id,
-    orderOptions,
-  } = req.body;
-
-  const body = razorpay_order_id + "|" + razorpay_payment_id;
-
-  const expecSignature = crypto
-    .createHmac("sha256", process.env.RAZOR_SECRET)
-    .update(body)
-    .digest("hex");
-
-  const isAuthentic = expecSignature === body;
-  if (isAuthentic) {
-    const payment = await Payment.create({
-      razorpay_payment_id,
-      razorpay_order_id,
-      razorpay_signature_id,
-    });
-
-    await Order.create({
-      ...orderOptions,
-      paidAt: Date.now(),
-      paymentInfo: payment._id,
-    });
-
-    res.status(201).json({
-      success: true,
-      message: `Order Placed successfully, Payment id:${payment._id}`,
-    });
-  } else {
-    return next(new ErrorHandler("Payment failed", 400));
-  }
 });
